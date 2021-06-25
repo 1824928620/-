@@ -1,0 +1,130 @@
+数据处理
+import numpy as np
+import pandas as pd
+
+
+train_file = r"*\*\*\train.csv"
+test_file = r"*\*\*\test.csv"
+def data_precess(filename):
+    df = pd.read_csv(filename)
+    data = []
+    for i in df:
+        data.append(df[i].astype(np.float32))
+    if 'CLASS' in df:
+        label = np.array(df['CLASS'].astype(np.long))
+        #去掉前面的序号和后面的标签
+        data = np.array(data)[1:-1].T
+    else:
+        label = np.array([])
+        #去掉前面的序号
+        data = np.array(data)[1:].T
+    return data,label
+train_data,train_labels = data_precess(train_file)
+test_data,_ = data_precess(test_file)
+
+到此实现了训练集和测试集的提取。
+经过我的观察发现训练集和测试集的最大值和最小值都是1和-1。这就很容易实现归一化。我就直接
+
+train_data = (train_data+1)/2
+test_data = (test_data+1)/2
+我的数据处理到处为止，但我想肯定还不够，好的数据处理手段是机器学习的基础。我也在尝试，也希望读者自己尝试不同的数据处理手段。
+
+机器学习方法比较
+SVC
+from sklearn.model_selection import cross_val_score
+from sklearn import svm
+clf = svm.SVC(C=1, kernel='poly', degree=2, gamma='scale', coef0=0.0, shrinking=True, probability=True, 
+              tol=0.001, cache_size=200, class_weight=None, verbose=False, max_iter=-1, decision_function_shape='ovr', 
+              break_ties=False, random_state=None)
+scores = cross_val_score(clf, train_data, train_labels, cv=10)
+print(scores)
+print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
+决策树
+from sklearn.model_selection import cross_val_score
+from sklearn import tree
+clf = tree.DecisionTreeClassifier(criterion='gini', splitter='random', max_depth=None, min_samples_split=7, min_samples_leaf=1, 
+                                  min_weight_fraction_leaf=0.0, max_features=None, random_state=None, max_leaf_nodes=None,
+                                  min_impurity_decrease=0.0, min_impurity_split=None, class_weight=None, presort='deprecated', ccp_alpha=0.0)
+scores = cross_val_score(clf, train_data, train_labels, cv=5)
+print(scores)
+print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
+随机森林
+from sklearn.ensemble import RandomForestClassifier
+clf = RandomForestClassifier(n_estimators=1000, criterion='gini', max_depth=None, min_samples_split=2, min_samples_leaf=1, 
+                             min_weight_fraction_leaf=0.0, max_features='auto', max_leaf_nodes=None, min_impurity_decrease=0.0, 
+                             min_impurity_split=None, bootstrap=True, oob_score=False, n_jobs=None, 
+                             random_state=None, verbose=0, warm_start=False, class_weight=None, ccp_alpha=0.0, max_samples=None)
+scores = cross_val_score(clf, train_data, train_labels, cv=5)
+print(scores)
+print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
+AdaBoost
+from sklearn.ensemble import AdaBoostClassifier
+clf = AdaBoostClassifier(base_estimator=svm.SVC(C=2, kernel='poly', degree=2, gamma='scale', coef0=0.0, shrinking=True, probability=True, 
+              tol=0.001, cache_size=200, class_weight=None, verbose=False, max_iter=-1, decision_function_shape='ovr', 
+              break_ties=False, random_state=None), 
+                         n_estimators=1000, learning_rate=0.7, algorithm='SAMME.R', random_state=None)
+scores = cross_val_score(clf, train_data, train_labels, cv=5)
+print(scores)
+print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
+梯度提升树
+from sklearn.ensemble import GradientBoostingClassifier
+clf = GradientBoostingClassifier(loss='deviance', learning_rate=0.7, n_estimators=1000, subsample=1.0, criterion='friedman_mse', 
+                                 min_samples_split=2, min_samples_leaf=1, min_weight_fraction_leaf=0.0, max_depth=3, 
+                                 min_impurity_decrease=0.0, min_impurity_split=None, init=None, random_state=None, 
+                                 max_features=None, verbose=0, max_leaf_nodes=None, warm_start=False, presort='deprecated', 
+                                 validation_fraction=0.1, n_iter_no_change=None, tol=0.0001, ccp_alpha=0.0)
+scores = cross_val_score(clf, train_data, train_labels, cv=5)
+print(scores)
+print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
+其他方法
+还有一些别的方法，比如说逻辑回归、线性回归，这些都没有好的效果，也可能是因为我不会调参，也可能是数据处理不好。
+
+结果
+在SVC上用10折交叉验证调了好久参数。最终达到了77%的10折交叉验证结果，提交后拿到了85%的score。然后把调好的SVC直接放进AdaBoost进行10折交叉验证调参，得到了87%的score。然后把AdaBoost进行10次学习取平均值（算是集成学习方法）得到了88%的score，至此再也升不上去了。
+
+测试集预测
+直接把调好的模型在全部训练集上训练然后预测。
+
+clf.fit(train_data,train_labels)
+out = clf.predict(test_data)
+sbmit = pd.read_csv(r"*\*\*\sample_submission.csv")
+sbmit['CLASS'] = out
+sbmit.to_csv('sample_submission.csv')
+1
+2
+3
+4
+5
+深度学习方法（三层好深啊！）
+直接把数据放入神经网络炼丹，至今没有好结果，过拟合极其严重以至于我放弃了神经网络。
+在之前数据处理的基础上训练。瞎写了一个神经网络，得出了瞎猜的正确率（50%）。
+
+class shixu_Model1(nn.Module):
+    def __init__(self):
+        super(final_Model1, self).__init__()
+        self.bn0 = nn.BatchNorm1d(240)
+        self.fc1 = nn.Linear(240,64)
+        self.dr1 = nn.Dropout(0.5)
+        self.rl1 = nn.ReLU(inplace=True)
+        self.bn1 = nn.BatchNorm1d(64)
+        self.fc2 = nn.Linear(64,32)
+        self.dr2 = nn.Dropout(0.8)
+        self.rl2 = nn.ReLU(inplace=True)
+        self.bn2 = nn.BatchNorm1d(32)
+        self.fc3 = nn.Linear(32,2)
+        self.dr3 = nn.Dropout(0.8)
+    def forward(self, x):
+        x = self.bn0(x)
+        x = self.fc1(x)
+        x = self.dr1(x)
+        
+        x = self.rl1(x)
+        x = self.bn1(x)
+        x = self.fc2(x)
+        x = self.dr2(x)
+        
+        x = self.rl2(x)
+        x = self.bn2(x)
+        x = self.fc3(x)
+        x = self.dr3(x)
+        return x
